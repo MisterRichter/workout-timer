@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Workout Timer</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F172A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Home Workout Timer">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #0F172A;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px 48px;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: #1E293B;
+    border-radius: 20px;
+    padding: 24px 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  h1 {
+    color: #F1F5F9;
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    color: #64748B;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .day-grid { display: flex; flex-direction: column; gap: 10px; }
+  .day-btn {
+    background: transparent;
+    border: 2px solid;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    transition: background 0.15s;
+    width: 100%;
+  }
+  .day-btn:active { opacity: 0.7; }
+  .day-key {
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .day-desc { color: #CBD5E1; font-size: 14px; font-weight: 500; }
+
+  /* Timer screen */
+  .timer-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .back-btn {
+    background: #334155;
+    border: none;
+    color: #94A3B8;
+    font-size: 18px;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .day-tag {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .day-title { color: #94A3B8; font-size: 13px; font-weight: 500; }
+  .ring-wrap { display: flex; justify-content: center; margin: 20px 0 10px; }
+  .phase-box { text-align: center; min-height: 60px; margin-bottom: 8px; }
+  .phase-label { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.2; }
+  .phase-sub { color: #64748B; font-size: 13px; margin-top: 4px; }
+  .countdown-flash {
+    text-align: center;
+    font-size: 48px;
+    font-weight: 900;
+    font-family: monospace;
+    opacity: 0.85;
+    margin: -4px 0 4px;
+  }
+  .next-box {
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    border: 2px solid;
+  }
+  .next-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .next-text { color: #F1F5F9; font-size: 16px; font-weight: 700; }
+  .next-sub { color: #94A3B8; font-size: 13px; width: 100%; margin-top: 2px; }
+  .controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
+  .cta-btn {
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 14px 28px;
+    cursor: pointer;
+    min-width: 120px;
+    transition: opacity 0.15s;
+  }
+  .cta-btn:active { opacity: 0.7; }
+  .skip-btn {
+    background: #334155;
+    border: none;
+    border-radius: 12px;
+    color: #94A3B8;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 14px 18px;
+    cursor: pointer;
+  }
+  .progress-bar { height: 4px; background: #0F172A; border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .done-box { text-align: center; padding: 40px 0; }
+  .done-emoji { font-size: 64px; margin-bottom: 12px; }
+  .done-text { color: #F1F5F9; font-size: 26px; font-weight: 800; margin-bottom: 24px; }
+  .hidden { display: none; }
+
+  .wake-status {
+    text-align: center;
+    font-size: 11px;
+    color: #475569;
+    margin-top: 10px;
+  }
+  .wake-status.active { color: #27AE60; }
+</style>
+</head>
+<body>
+<div class="card" id="app"></div>
+
+<script>
+// ── Workout Data ──────────────────────────────────────────────────────────────
+const WORKOUTS = {
+  MON: {
+    label: "MON — Lower (squat-biased)",
+    color: "#4A90D9",
+    exercises: ["DB Goblet Squat","Push-ups","DB Reverse Lunge","Seated Band Row","DB Sumo / Wide Squat","Band Lateral Walks","Plank / Side Plank","Dead Bug"]
+  },
+  TUE: {
+    label: "TUE — Upper (push + pull)",
+    color: "#E67E22",
+    exercises: ["DB Bent-over Row","DB Overhead Press","DB Pullover","Push-ups","Band Pull-apart","DB Floor Press","Plank","DB Hammer Curl"]
+  },
+  WED: {
+    label: "WED — Lower (hinge-biased)",
+    color: "#27AE60",
+    exercises: ["DB Romanian Deadlift","Push-ups","DB B-stance RDL","Seated Band Row","DB Hip Thrust / Glute Bridge","Slider Hamstring Curl","Side Plank","Dead Bug"]
+  },
+  THU: {
+    label: "THU — Upper (push + pull)",
+    color: "#8E44AD",
+    exercises: ["DB Single-arm Row","DB Shoulder / Arnold Press","DB Reverse Fly","Push-ups (feet-elevated)","Band Lat Pulldown / DB Pullover","DB Chest Fly","Side Plank","DB Hammer Curl"]
+  },
+  FRI: {
+    label: "FRI — Full-body / Core · LIGHT",
+    color: "#16A085",
+    exercises: ["Push-ups (light)","Seated Band Row","Bird-dog","Dead Bug","Plank / Side Plank","Band Lateral Walks","Glute Bridge (bodyweight)","Hollow Hold / Bicycle Crunch"]
+  }
+};
+
+const PHASE_COLORS = {
+  prep: "#475569", warmup: "#D97706", exercise: null,
+  "rest-short": "#334155", "rest-long": "#1E3A5F", cooldown: "#0F766E", done: "#166534"
+};
+
+// ── Phase Builder ─────────────────────────────────────────────────────────────
+function buildPhases(workout) {
+  const phases = [];
+  phases.push({ type: "prep", label: "Get Ready", duration: 5 });
+  for (let i = 0; i < 4; i++) phases.push({ type: "warmup", label: `Warm-up ${i+1} / 4`, duration: 30 });
+  phases.push({ type: "prep", label: "Workout Starting!", duration: 5 });
+  const exCount = workout.exercises.length, sets = 3;
+  for (let s = 0; s < sets; s++) {
+    for (let e = 0; e < exCount; e++) {
+      phases.push({ type: "exercise", label: workout.exercises[e], sublabel: `Set ${s+1} / ${sets}`, duration: 40 });
+      const lastEx = e === exCount - 1, lastSet = s === sets - 1;
+      if (!lastEx) {
+        phases.push({ type: "rest-short", label: `Up next: ${workout.exercises[e+1]}`, sublabel: `Set ${s+1} / ${sets}`, duration: 10 });
+      } else if (!lastSet) {
+        phases.push({ type: "rest-long", label: `Set ${s+1} done — Rest`, sublabel: `Next: ${workout.exercises[0]} · Set ${s+2} / ${sets}`, duration: 30 });
+      }
+    }
+  }
+  phases.push({ type: "prep", label: "Cool-down Coming Up", duration: 5 });
+  for (let i = 0; i < 4; i++) phases.push({ type: "cooldown", label: `Cool-down ${i+1} / 4`, duration: 30 });
+  phases.push({ type: "done", label: "Workout Complete! 🎉", duration: 0 });
+  return phases;
+}
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq=880, dur=0.12, gain=0.4, type="sine") {
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.connect(g); g.connect(ac.destination);
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(gain, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    osc.start(ac.currentTime); osc.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+function phaseEnd() {
+  setTimeout(() => beep(523,0.1,0.5), 0);
+  setTimeout(() => beep(659,0.1,0.5), 130);
+  setTimeout(() => beep(784,0.18,0.6), 260);
+}
+function countdownTick() { beep(440,0.08,0.3,"square"); }
+function workoutDone() {
+  [0,180,360,540,720].forEach((d,i) => setTimeout(() => beep(523*(i%2===0?1:1.5),0.25,0.5), d));
+}
+
+// ── Wake Lock ─────────────────────────────────────────────────────────────────
+let wakeLock = null;
+async function acquireWakeLock() {
+  if (!("wakeLock" in navigator)) { updateWakeStatus(false, "Wake lock not supported"); return; }
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; updateWakeStatus(false); });
+    updateWakeStatus(true);
+  } catch(e) { updateWakeStatus(false, e.message); }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  updateWakeStatus(false);
+}
+function updateWakeStatus(active, msg) {
+  const el = document.getElementById("wake-status");
+  if (!el) return;
+  if (active) { el.textContent = "🔆 Screen wake lock active"; el.className = "wake-status active"; }
+  else { el.textContent = msg ? `Wake lock: ${msg}` : "Screen may sleep when idle"; el.className = "wake-status"; }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && wakeLock === null && state.running) acquireWakeLock();
+});
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = {
+  selectedDay: null, phases: [], phaseIdx: 0,
+  timeLeft: 0, running: false, started: false,
+  timerInterval: null
+};
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById("app");
+  if (!state.selectedDay) { app.innerHTML = renderMenu(); return; }
+  app.innerHTML = renderTimer();
+}
+
+function renderMenu() {
+  const days = Object.entries(WORKOUTS).map(([key, w]) => `
+    <button class="day-btn" style="border-color:${w.color}" onclick="selectWorkout('${key}')">
+      <span class="day-key" style="background:${w.color}">${key}</span>
+      <span class="day-desc">${w.label.split("—")[1]?.trim()}</span>
+    </button>`).join("");
+  return `<h1>Weekly Training</h1><p class="subtitle">Pick today's session</p><div class="day-grid">${days}</div>`;
+}
+
+function renderTimer() {
+  const workout = WORKOUTS[state.selectedDay];
+  const phase = state.phases[state.phaseIdx];
+  const nextPhase = state.phases[state.phaseIdx + 1];
+  const accentColor = phase?.type === "exercise" ? workout.color : (PHASE_COLORS[phase?.type] || "#475569");
+
+  const header = `
+    <div class="timer-header">
+      <button class="back-btn" onclick="handleReset()">←</button>
+      <span class="day-tag" style="background:${workout.color}">${state.selectedDay}</span>
+      <span class="day-title">${workout.label.split("—")[1]?.trim()}</span>
+    </div>`;
+
+  if (phase?.type === "done") {
+    return header + `
+      <div class="done-box">
+        <div class="done-emoji">🎉</div>
+        <div class="done-text">Workout Complete!</div>
+        <button class="cta-btn" style="background:${workout.color}" onclick="handleReset()">Back to Menu</button>
+      </div>`;
+  }
+
+  // SVG ring
+  const R = 80, C = 2 * Math.PI * R;
+  const total = phase?.duration || 1;
+  const progress = total > 0 ? (state.timeLeft / total) * 100 : 100;
+  const dashOffset = C - (C * progress) / 100;
+
+  const ring = `
+    <div class="ring-wrap">
+      <svg width="200" height="200">
+        <circle cx="100" cy="100" r="${R}" fill="none" stroke="#1E293B" stroke-width="10"/>
+        <circle cx="100" cy="100" r="${R}" fill="none" stroke="${accentColor}" stroke-width="10"
+          stroke-dasharray="${C}" stroke-dashoffset="${dashOffset}"
+          stroke-linecap="round" transform="rotate(-90 100 100)"
+          style="transition:stroke-dashoffset 0.8s linear,stroke 0.3s"/>
+        <text x="100" y="95" text-anchor="middle" fill="#F1F5F9" font-size="42" font-weight="700" font-family="monospace">${state.timeLeft}</text>
+        <text x="100" y="118" text-anchor="middle" fill="#94A3B8" font-size="11" font-family="sans-serif">seconds</text>
+      </svg>
+    </div>`;
+
+  const phaseBox = `
+    <div class="phase-box">
+      <div class="phase-label" style="color:${accentColor}">${phase?.label || ""}</div>
+      ${phase?.sublabel ? `<div class="phase-sub">${phase.sublabel}</div>` : ""}
+    </div>`;
+
+  const flash = (state.timeLeft <= 5 && state.timeLeft > 0 && state.running)
+    ? `<div class="countdown-flash" style="color:${accentColor}">${state.timeLeft}</div>` : "";
+
+  const nextBox = (nextPhase && nextPhase.type !== "done") ? `
+    <div class="next-box" style="border-color:${accentColor};background:${accentColor}22">
+      <span class="next-label" style="color:${accentColor}">Next →</span>
+      <span class="next-text">${nextPhase.label}</span>
+      ${nextPhase.sublabel ? `<span class="next-sub">${nextPhase.sublabel}</span>` : ""}
+    </div>` : "";
+
+  const btnLabel = !state.started ? "Start" : state.running ? "Pause" : "Resume";
+  const controls = `
+    <div class="controls">
+      <button class="cta-btn" style="background:${accentColor}" onclick="handleStartPause()">${btnLabel}</button>
+      <button class="skip-btn" onclick="handleSkip()">Skip →</button>
+    </div>`;
+
+  // Progress bar
+  const allPhases = state.phases;
+  const countable = allPhases.filter(p => p.type !== "prep" && p.type !== "done");
+  const done = allPhases.slice(0, state.phaseIdx).filter(p => p.type !== "prep" && p.type !== "done").length;
+  const pct = countable.length ? (done / countable.length) * 100 : 0;
+  const progressBar = `
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:${pct}%;background:${accentColor}"></div>
+    </div>`;
+
+  return header + ring + phaseBox + flash + controls + progressBar + nextBox +
+    `<div id="wake-status" class="wake-status">Screen may sleep when idle</div>`;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function selectWorkout(key) {
+  state.selectedDay = key;
+  state.phases = buildPhases(WORKOUTS[key]);
+  state.phaseIdx = 0;
+  state.timeLeft = state.phases[0].duration;
+  state.running = false;
+  state.started = false;
+  render();
+}
+
+function advancePhase() {
+  const next = state.phaseIdx + 1;
+  if (next >= state.phases.length) return;
+  const nextP = state.phases[next];
+  if (nextP.type === "done") {
+    workoutDone();
+    releaseWakeLock();
+    state.phaseIdx = next;
+    state.timeLeft = 0;
+    state.running = false;
+    render(); return;
+  }
+  phaseEnd();
+  state.phaseIdx = next;
+  state.timeLeft = nextP.duration;
+  render();
+}
+
+function startTick() {
+  clearInterval(state.timerInterval);
+  state.timerInterval = setInterval(() => {
+    if (!state.running) return;
+    state.timeLeft--;
+    if (state.timeLeft <= 5 && state.timeLeft > 0) countdownTick();
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerInterval);
+      advancePhase();
+      if (state.running) startTick();
+      return;
+    }
+    // Partial re-render: just update ring + countdown + flash
+    const svg = document.querySelector(".ring-wrap svg");
+    if (svg) {
+      const phase = state.phases[state.phaseIdx];
+      const total = phase?.duration || 1;
+      const progress = (state.timeLeft / total) * 100;
+      const R = 80, C = 2 * Math.PI * R;
+      const dashOffset = C - (C * progress) / 100;
+      const arc = svg.querySelectorAll("circle")[1];
+      if (arc) arc.setAttribute("stroke-dashoffset", dashOffset);
+      const timeText = svg.querySelectorAll("text")[0];
+      if (timeText) timeText.textContent = state.timeLeft;
+    }
+    // Update flash
+    const existingFlash = document.querySelector(".countdown-flash");
+    const workout = WORKOUTS[state.selectedDay];
+    const phase = state.phases[state.phaseIdx];
+    const accentColor = phase?.type === "exercise" ? workout.color : (PHASE_COLORS[phase?.type] || "#475569");
+    if (state.timeLeft <= 5 && state.timeLeft > 0 && state.running) {
+      if (existingFlash) { existingFlash.textContent = state.timeLeft; }
+      else {
+        const phaseBox = document.querySelector(".phase-box");
+        if (phaseBox) {
+          const flash = document.createElement("div");
+          flash.className = "countdown-flash";
+          flash.style.color = accentColor;
+          flash.textContent = state.timeLeft;
+          phaseBox.after(flash);
+        }
+      }
+    } else if (existingFlash) existingFlash.remove();
+  }, 1000);
+}
+
+function handleStartPause() {
+  if (state.phases[state.phaseIdx]?.type === "done") return;
+  state.started = true;
+  state.running = !state.running;
+  if (state.running) { acquireWakeLock(); startTick(); }
+  else { releaseWakeLock(); clearInterval(state.timerInterval); }
+  const btn = document.querySelector(".cta-btn");
+  if (btn) btn.textContent = state.running ? "Pause" : "Resume";
+  updateWakeStatus(state.running && !!wakeLock);
+}
+
+function handleSkip() {
+  clearInterval(state.timerInterval);
+  advancePhase();
+  if (state.running) startTick();
+}
+
+function handleReset() {
+  clearInterval(state.timerInterval);
+  releaseWakeLock();
+  state.selectedDay = null;
+  state.phases = []; state.phaseIdx = 0;
+  state.timeLeft = 0; state.running = false; state.started = false;
+  render();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+render();
+
+// ── Service Worker Registration ───────────────────────────────────────────────
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
